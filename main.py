@@ -1,4 +1,8 @@
 from tkinter import *
+import platform
+import os
+if platform.system() == "Windows":
+    import winsound
 
 # ---------------------------- CONSTANTS ------------------------------- #
 PINK = "#e2979c"
@@ -15,13 +19,18 @@ session_index = 0
 work_sessions_completed = 0
 timer = None
 paused = False
+remaining_time = 0
 
 
 # ---------------------------- TIMER RESET ------------------------------- #
 
 def reset_timer():
-    global session_index, work_sessions_completed
-    window.after_cancel(timer)
+    global session_index, work_sessions_completed, paused, remaining_time
+    remaining_time = 0
+    start_btn.config(state="normal")
+    paused = False
+    if timer:
+        window.after_cancel(timer)
     canvas.itemconfig(timer_text, text="00:00")
     session_index = 0
     work_sessions_completed = 0
@@ -35,22 +44,17 @@ def reset_timer():
 # ---------------------------- PAUSE AND UNPAUSE ----------------------------- #
 
 def pause():
-    global paused
+    global paused, timer, remaining_time
     paused = not paused
-    if paused:
+    if paused and timer:
         pause_unpause_btn.config(text="Unpause", fg="#359b44")
         window.after_cancel(timer)
     else:
         pause_unpause_btn.config(text="Pause", fg="#f36848")
         # Resume countdown with the remaining time by getting the existing time on screen
-        current_time = canvas.itemcget(timer_text, 'text')
-        # Split the current time by : because it is treated as a whole string
-        current_time_list = current_time.split(":")
-        # Convert the minutes and seconds to integer so that the start_timer will recalculate the time based on a string
-        resume_minutes = int(current_time_list[0])
-        resume_seconds = int(current_time_list[1])
-        remaining_time = (resume_minutes * 60) + resume_seconds
-        count_down(remaining_time)
+        
+        if remaining_time != 0:
+            count_down(remaining_time)
 
 
 # ---------------------------- TIMER MECHANISM ------------------------------- #
@@ -58,6 +62,8 @@ def pause():
 
 def start_timer():
     global session_index, work_sessions_completed, paused
+    play_sound()
+    start_btn.config(state="disabled") #added this so you can't press start multiple times :)
     if session_index % 2 == 1:
         """Updates the number of tick marks below"""
         work_sessions_completed += 1
@@ -78,28 +84,29 @@ def start_timer():
 
 # ---------------------------- COUNTDOWN MECHANISM ------------------------------- #
 def count_down(count):
-    global session_index, timer
-    minutes = count // 60
-    seconds = count % 60
-    if minutes < 10:
-        minutes = f"0{minutes}"
-    if seconds < 10:
-        seconds = f"0{seconds}"
+    global session_index, timer, remaining_time
+    remaining_time = count
+    minutes = int(count // 60)
+    seconds = int(count % 60)
     """Reflects the timer countdown on the widget"""
-    countdown_text = f"{minutes}:{seconds}"
-    canvas.itemconfig(timer_text, text=countdown_text)
-    if count > 0:
-        if not paused:
-            """Keeps the timer running"""
-            timer = window.after(1000, count_down, count - 1)  # Use 1000 for 1 second interval
-    else:
+    canvas.itemconfig(timer_text, text=f"{minutes:02d}:{seconds:02d}") #simplified the formatting logic
+
+    if count > 0 and not paused:
+        """Keeps the timer running"""
+        timer = window.after(1000, count_down, count - 1)  # Use 1000 for 1 second interval
+    elif count == 0:
+        play_sound()
         session_index += 1
-        if session_index >= len(sequence):
-            if count > 0:
-                timer = window.after(1000, count_down, count - 1)
-                canvas.itemconfig(timer_text, text="00:00")
-        else:
+        if session_index < len(sequence):
             start_timer()
+# ---------------------------- PLAY SOUND ------------------------------- #
+#
+def play_sound():
+    system = platform.system()
+    if system.lower() == "windows":
+        winsound.PlaySound("session_end.wav", winsound.SND_FILENAME)
+    else:
+        os.system("aplay session_end.wav &")
 
 
 # ---------------------------- UI SETUP ------------------------------- #
